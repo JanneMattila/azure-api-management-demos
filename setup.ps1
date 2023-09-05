@@ -18,18 +18,36 @@ $nsg = New-AzNetworkSecurityGroup `
     -Location $location `
     -Name "nsg-apim"
 
+# Read more details about NSG rules at https://aka.ms/apimvnet
+
 # Create a network security group rule for port 443
-# $nsg | Add-AzNetworkSecurityRuleConfig `
-#     -Name "Allow-HTTPS" `
-#     -Description "Allow HTTPS" `
-#     -Access Allow `
-#     -Protocol Tcp `
-#     -Direction Inbound `
-#     -Priority 100 `
-#     -SourceAddressPrefix * `
-#     -SourcePortRange * `
-#     -DestinationAddressPrefix * `
-#     -DestinationPortRange 443
+$nsg | Add-AzNetworkSecurityRuleConfig `
+    -Name "Allow-HTTPS" `
+    -Description "Allow HTTPS" `
+    -Access Allow `
+    -Protocol Tcp `
+    -Direction Inbound `
+    -Priority 100 `
+    -SourceAddressPrefix * `
+    -SourcePortRange * `
+    -DestinationAddressPrefix * `
+    -DestinationPortRange 443
+
+# Enable port 3443
+$nsg | Add-AzNetworkSecurityRuleConfig `
+    -Name "Allow-3443" `
+    -Description "Allow 3443" `
+    -Access Allow `
+    -Protocol Tcp `
+    -Direction Inbound `
+    -Priority 101 `
+    -SourceAddressPrefix * `
+    -SourcePortRange * `
+    -DestinationAddressPrefix * `
+    -DestinationPortRange 3443
+
+# Update the network security group
+$nsg | Set-AzNetworkSecurityGroup
 
 # Create a virtual network
 $vnet = New-AzVirtualNetwork `
@@ -78,12 +96,15 @@ New-AzApiManagement `
 #   "error": {
 #     "code": "InvalidParameters",
 #     "message": "Invalid parameter: API Management service deployment into SubnetId 
-#     `/subscriptions/<subscriptionid>/resourceGroups/<rg/providers/Microsoft.Network/virtualNetworks/vnet-apim/subnets/snet-apim` 
+#     `/subscriptions/<subscriptionid>/resourceGroups/<rg>/providers/Microsoft.Network/virtualNetworks/vnet-apim/subnets/snet-apim` 
 #     requires a Network Security Group to be associated with it. For recommended configuration and sample templates, please refer to aka.ms/apimvnet",
 #     "details": null,
 #     "innerError": null
 #   }
 # }
+
+Test-NetConnection -ComputerName "$apimName.azure-api.net" -Port 443
+Test-NetConnection -ComputerName "$apimName.azure-api.net" -Port 3443
 
 # Remove the resource group
 Remove-AzResourceGroup -Name $resourceGroupName -Force
