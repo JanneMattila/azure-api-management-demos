@@ -1,13 +1,13 @@
-$subscription_name = "Production"
+$subscriptionName = "Production"
 
-$apimName = "apim0000000000020"
+$apimName = "apim0000000000001"
 $vnetName = "vnet-apim"
 $apimSubnetName = "snet-apim"
-$resourceGroupName = "rg-apim2"
+$resourceGroupName = "rg-apim"
 $location = "northeurope"
 
 Login-AzAccount
-Select-AzSubscription -SubscriptionName $subscription_name
+Select-AzSubscription -SubscriptionName $subscriptionName
 
 # Create a resource group
 New-AzResourceGroup -Name $resourceGroupName -Location $location -Force
@@ -16,35 +16,87 @@ New-AzResourceGroup -Name $resourceGroupName -Location $location -Force
 $nsg = New-AzNetworkSecurityGroup `
     -ResourceGroupName $resourceGroupName `
     -Location $location `
-    -Name "nsg-apim"
+    -Name "nsg-apim" -Force
 
 # Read more details about NSG rules at https://aka.ms/apimvnet
 
 # Create a network security group rule for port 443
 $nsg | Add-AzNetworkSecurityRuleConfig `
     -Name "Allow-HTTPS" `
-    -Description "Allow HTTPS" `
+    -Description "Allow HTTPS for Client communication to API Management" `
     -Access Allow `
     -Protocol Tcp `
     -Direction Inbound `
     -Priority 100 `
-    -SourceAddressPrefix * `
+    -SourceAddressPrefix Internet `
     -SourcePortRange * `
-    -DestinationAddressPrefix * `
+    -DestinationAddressPrefix VirtualNetwork `
     -DestinationPortRange 443
 
 # Enable port 3443
 $nsg | Add-AzNetworkSecurityRuleConfig `
     -Name "Allow-3443" `
-    -Description "Allow 3443" `
+    -Description "Allow 3443 for Azure Infrastructure Load Balancer" `
     -Access Allow `
     -Protocol Tcp `
     -Direction Inbound `
     -Priority 101 `
-    -SourceAddressPrefix * `
+    -SourceAddressPrefix ApiManagement `
     -SourcePortRange * `
-    -DestinationAddressPrefix * `
+    -DestinationAddressPrefix VirtualNetwork `
     -DestinationPortRange 3443
+
+# Enable port 6390
+$nsg | Add-AzNetworkSecurityRuleConfig `
+    -Name "Allow-6390" `
+    -Description "Allow 6390 for Azure Infrastructure Load Balancer" `
+    -Access Allow `
+    -Protocol Tcp `
+    -Direction Inbound `
+    -Priority 102 `
+    -SourceAddressPrefix AzureLoadBalancer `
+    -SourcePortRange * `
+    -DestinationAddressPrefix VirtualNetwork `
+    -DestinationPortRange 6390
+
+# Enable outboung port 443 for Storage
+$nsg | Add-AzNetworkSecurityRuleConfig `
+    -Name "Allow-Storage-Outbound" `
+    -Description "Allow Storage Outbound" `
+    -Access Allow `
+    -Protocol Tcp `
+    -Direction Outbound `
+    -Priority 200 `
+    -SourceAddressPrefix VirtualNetwork `
+    -SourcePortRange * `
+    -DestinationAddressPrefix Storage `
+    -DestinationPortRange 443
+
+# Enable outboung port 1433 for SQL
+$nsg | Add-AzNetworkSecurityRuleConfig `
+    -Name "Allow-SQL-Outbound" `
+    -Description "Allow SQL Outbound" `
+    -Access Allow `
+    -Protocol Tcp `
+    -Direction Outbound `
+    -Priority 201 `
+    -SourceAddressPrefix VirtualNetwork `
+    -SourcePortRange * `
+    -DestinationAddressPrefix SQL `
+    -DestinationPortRange 1433
+
+# Enable outboung port 443 for Key Vault
+$nsg | Add-AzNetworkSecurityRuleConfig `
+    -Name "Allow-KeyVault-Outbound" `
+    -Description "Allow Key Vault Outbound" `
+    -Access Allow `
+    -Protocol Tcp `
+    -Direction Outbound `
+    -Priority 202 `
+    -SourceAddressPrefix VirtualNetwork `
+    -SourcePortRange * `
+    -DestinationAddressPrefix AzureKeyVault `
+    -DestinationPortRange 443
 
 # Update the network security group
 $nsg | Set-AzNetworkSecurityGroup
@@ -105,6 +157,10 @@ New-AzApiManagement `
 
 Test-NetConnection -ComputerName "$apimName.azure-api.net" -Port 443
 Test-NetConnection -ComputerName "$apimName.azure-api.net" -Port 3443
+Test-NetConnection -ComputerName "$apimName.azure-api.net" -Port 6390
+
+curl "https://$apimName.azure-api.net/"
+curl "https://$apimName.azure-api.net/echo/resource?param1=sample"
 
 # Remove the resource group
 Remove-AzResourceGroup -Name $resourceGroupName -Force
