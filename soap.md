@@ -1,7 +1,7 @@
 # SOAP
 
 This repo contain simple Web Service implementation for `ProductService`.
-WSDL fils is saved to [ProductService.wsdl](./ProductService.wsdl).
+WSDL fils is saved to [ProductService.wsdl](./ProductsService.wsdl).
 
 ## SOAP pass-through
 
